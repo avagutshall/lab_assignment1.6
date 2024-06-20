@@ -1,0 +1,142 @@
+
+
+# Load a list of packages. Install them first if they are not available.
+# The list of packages to be installed
+list.of.packages <- c("sf", "sp", "spatial", "maptools", "rgeos","rgdal",
+                      "raster", "grid", "rasterVis",
+                      "tidyverse", "magrittr", "ggpubr", "lubridate",
+                      "devtools", "htmlwidgets", "mapview",
+                      "classInt", "RColorBrewer", "ggmap", "tmap", "leaflet", "mapview", 
+                      "ggrepel", "ggsn",
+                      "spdep","spatialreg","GWmodel");
+
+# Check out the packages that have not been installed yet.
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+
+# Install those missing packages first. It could take a long time for the first time.
+if(length(new.packages)>0) install.packages(new.packages)
+
+# Load all packages.
+lapply(list.of.packages,function(x) {
+  require(x,character.only = TRUE,quietly = TRUE)
+})
+
+# Or load specific packages when needed
+require(sp); require(sf); library(raster)
+
+install.packages("sf")
+
+library(sf)
+
+#Task 2: Read the NYC postal areas in shapefiles into sf objects 
+geojson_file <- file.choose()
+
+postal_areas_sf <- st_read(geojson_file) 
+
+postal_areas_sf
+
+#Task 3: Read the NYC public health services data into a dataframe in R 
+#Extract Coordinates 
+public_health_services_df <- read.csv(file.choose())
+
+public_health_services_df 
+
+lat_lon <- regmatches(public_health_services_df$Location.1, 
+                      gregexpr( "(?<=\\().+?(?=\\))",
+                                public_health_services_df$Location.1, perl = T))
+lat_lon2 <- data.frame(str_split_fixed(lat_lon, ", ", 2))
+#rename columns 
+colnames(lat_lon2) <- c("Latitude", "Longitude")
+
+colnames(public_health_services_df) <- c("Facility_Type",
+                                         "Borough", "Facility_Name", 
+                                         "Cross_Streets", "Phone", "Location", 
+                                         "Latitude", "Longitude") 
+rm('lat_lon', 'lat_lon2')
+
+# Filter out rows with missing Longitude or Latitude
+public_health_services_df <- 
+  public_health_services_df[complete.cases(public_health_services_df$Longitude,
+                                           public_health_services_df$Latitude),
+                            ]
+
+# Convert Longitude and Latitude to numeric
+public_health_services_df$Longitude <- 
+  as.numeric(public_health_services_df$Longitude)
+public_health_services_df$Latitude <- 
+  as.numeric(public_health_services_df$Latitude)
+
+#Create sf objects from geographic coordinates 
+Public_health_services_sf <- st_as_sf(public_health_services_df , 
+                                      coords = c("Longitude", "Latitude"))
+
+Public_health_services_sf
+
+#Task 4: Read and process the NYS retail food stores data. 
+#Create sf objects from geographic coordinates for NYS. 
+
+retail_food_stores_df <- read.csv(file.choose())
+retail_food_stores_df
+
+# Extract coordinates for Location column
+lat_lon <- regmatches(retail_food_stores_df$Location,
+                      gregexpr( "(?<=\\().+?(?=\\))",
+                                retail_food_stores_df$Location, perl = T))
+lat_lon1 <- data.frame(str_split_fixed(lat_lon, ", ", 2))
+# Rename the columns
+colnames(lat_lon1) <- c("Latitude", "Longitude")
+# Convert the latitude and longitude values from character into numeric values
+lat_lon1$Latitude <- as.numeric(lat_lon1$Latitude)
+lat_lon1$Longitude <- as.numeric(lat_lon1$Longitude)
+# There are missing coordinate values, so I will remove those rows from the 
+# data frame
+retail_food_stores_df <- retail_food_stores_df %>%
+  select(c(-Address.Line.2, -Address.Line.3))
+retail_food_stores_df <- na.omit(retail_food_stores_df)
+rm('lat_lon', 'lat_lon1')
+#rename columns
+colnames(retail_food_stores_df) <- c("County", "License_Number", 
+                                     "Operation_Type", "Establishment_Type", 
+                                     "Entity_Name", "DBA_Name", "Street_Number",
+                                     "Street_Name", "City", "State", "Zip_Code", 
+                                     "Square_Footage","Geoference"
+retail_food_stores_sf <- st_as_sf(retail_food_stores_df, coords = c("Longitude", 
+                                                                    "Latitude"))
+
+#Task 5: Use simple mapping method, either based on ggmap + ggplot or mapview, 
+#with a basemap to verify the above datasets in terms of their geometry 
+#locations.
+
+
+mapview(postal_areas_sf) 
+mapview(Public_health_services_sf, zcol = "Facility_Type", layer.name = 
+          "Facility Type")
+mapview(retail_food_stores_sf, layer.name = "NYS Retail Food Stores")
+
+
+#Task 6: Save the three sf objects in a RData file or in a single 
+#GeoPackage file/database. 
+
+save(postal_areas_sf, public_health_services_sf, retail_food_stores_sf,
+     file = "Data9.RData")
+
+# To get the data back into R
+# load(file = "Data.RData")
+
+# Save data to a GeoPackage file/database
+st_write(postal_areas_sf,
+         dsn = "Data.gpkg",
+         layer = "postal_areas",
+         delete_layer = TRUE)
+
+st_write(public_health_services_sf,
+         dsn = "Data.gpkg",
+         layer = "public_health_services",
+         delete_layer = TRUE)
+
+st_write(retail_food_stores_sf,
+         dsn = "Data.gpkg",
+         layer = "retail_food_stores",
+         delete_layer = TRUE)
+         
+         
